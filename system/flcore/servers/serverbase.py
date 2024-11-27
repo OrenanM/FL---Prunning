@@ -24,6 +24,8 @@ import time
 import random
 from utils.data_utils import read_client_data
 from utils.dlg import DLG
+from utils.prunning import restore_to_original_size, prune_and_restructure
+from utils.size_mode import get_model_size
 
 
 class Server(object):
@@ -79,6 +81,14 @@ class Server(object):
         self.eval_new_clients = False
         self.fine_tuning_epoch_new = args.fine_tuning_epoch_new
 
+        self.amount_prune = args.amount_prune
+        self.current_round = 0
+        self.mask_model = None
+        self.asynchronous = args.asynchronous
+        self.max_samples = 0
+        self.apply_prune = args.apply_prune
+        self.masks = {}
+
     def set_clients(self, clientObj):
         for i, train_slow, send_slow in zip(range(self.num_clients), self.train_slow_clients, self.send_slow_clients):
             train_data = read_client_data(self.dataset, i, is_train=True)
@@ -108,6 +118,9 @@ class Server(object):
             self.send_slow_rate)
 
     def select_clients(self):
+        if self.current_round == 0 and self.apply_prune:
+            print('aqui')
+            return self.clients
         if self.random_join_ratio:
             self.current_num_join_clients = np.random.choice(range(self.num_join_clients, self.num_clients+1), 1, replace=False)[0]
         else:
@@ -115,17 +128,46 @@ class Server(object):
         selected_clients = list(np.random.choice(self.clients, self.current_num_join_clients, replace=False))
 
         return selected_clients
+    
+    def set_amount_prune(self):
+        max_amount = 0
+        for client in self.clients:
+            amount = 1 - (self.max_samples / client.train_samples)
+            amount = max(0, min(amount, 0.9))
+
+            if amount > max_amount:
+                max_amount = amount
+        return max_amount
 
     def send_models(self):
         assert (len(self.clients) > 0)
 
-        for client in self.clients:
+        for client in self.clients:  
             start_time = time.time()
-            
+
             client.set_parameters(self.global_model)
 
             client.send_time_cost['num_rounds'] += 1
             client.send_time_cost['total_cost'] += 2 * (time.time() - start_time)
+
+    def apply_pruning(self, client, amount):
+        """aplica o prunning"""
+        global_model = copy.deepcopy(self.global_model)
+        model, mask = prune_and_restructure(global_model, amount)
+        return model, mask
+
+    def set_threthold(self, active_clients):
+        """define o limiar temporal que  será utilizado"""
+        tot_time = 0
+
+        for client in active_clients:
+            client_time_cost = client.train_time_cost['total_cost'] / client.train_time_cost['num_rounds'] + \
+                        client.send_time_cost['total_cost'] / client.send_time_cost['num_rounds']
+            tot_time += client_time_cost
+
+        mean_time = tot_time / len(active_clients)
+        self.time_threthold = 1.2 * mean_time
+        print(f'time_threthold: {self.time_threthold}s')
 
     def receive_models(self):
         assert (len(self.selected_clients) > 0)
@@ -137,23 +179,75 @@ class Server(object):
         self.uploaded_weights = []
         self.uploaded_models = []
         tot_samples = 0
+        
+        mean_time = 0
+        max_samples = 0
+        
+        if self.asynchronous and (self.current_round == 0 or self.current_round == 2):
+            self.set_threthold(active_clients)
+
         for client in active_clients:
             try:
                 client_time_cost = client.train_time_cost['total_cost'] / client.train_time_cost['num_rounds'] + \
                         client.send_time_cost['total_cost'] / client.send_time_cost['num_rounds']
             except ZeroDivisionError:
                 client_time_cost = 0
-            if client_time_cost <= self.time_threthold:
+            
+            if client_time_cost <= self.time_threthold or self.current_round == 1:
                 tot_samples += client.train_samples
                 self.uploaded_ids.append(client.id)
                 self.uploaded_weights.append(client.train_samples)
                 self.uploaded_models.append(client.model)
+
+                if client.train_samples > self.max_samples and self.current_round == 0:
+                    #numero maximo de dados dentro do limiar
+                    self.max_samples = client.train_samples
+
+            elif self.apply_prune == 1:
+                client.delay = True
+
+            if client.train_samples > max_samples:
+                max_samples = client.train_samples
+                max_time_cost = client.time_last_train
+                id_max = client.id
+
         for i, w in enumerate(self.uploaded_weights):
             self.uploaded_weights[i] = w / tot_samples
 
+        print(f'client {id_max}: {max_samples} samples - {max_time_cost} s - mean {mean_time}')
+
     def aggregate_parameters(self):
         assert (len(self.uploaded_models) > 0)
+        print(f'Aggregate: {len(self.uploaded_ids)}')
 
+        self.global_model = copy.deepcopy(self.uploaded_models[0])
+        for param in self.global_model.parameters():
+            param.data.zero_()
+        
+        weight_sums = [0] * len(list(self.global_model.parameters()))
+            
+        for w, client_model in zip(self.uploaded_weights, self.uploaded_models):
+            self.add_parameters(w, client_model, weight_sums)
+        
+        # Normaliza cada parâmetro do modelo global
+        for idx, param in enumerate(self.global_model.parameters()):
+            if weight_sums[idx] > 0:  # Evita divisão por zero
+                param.data /= weight_sums[idx]
+
+    def add_parameters(self, w, client_model, weight_sums):
+        for idx, (server_param, client_param) in enumerate(zip(self.global_model.parameters(), client_model.parameters())):
+            # Verifica se o parâmetro do cliente é todo zero
+            if torch.all(client_param.data == 0):
+                adjusted_weight = 0  # Parâmetros zerados recebem peso 0
+            else:
+                adjusted_weight = w
+            # Atualiza o peso acumulado para o parâmetro
+            weight_sums[idx] += adjusted_weight
+            # Atualiza o parâmetro do servidor
+            server_param.data += client_param.data.clone() * adjusted_weight
+    '''def aggregate_parameters(self):
+        assert (len(self.uploaded_models) > 0)
+        print(f'Aggregate: {len(self.uploaded_ids)}')
         self.global_model = copy.deepcopy(self.uploaded_models[0])
         for param in self.global_model.parameters():
             param.data.zero_()
@@ -164,7 +258,7 @@ class Server(object):
     def add_parameters(self, w, client_model):
         for server_param, client_param in zip(self.global_model.parameters(), client_model.parameters()):
             server_param.data += client_param.data.clone() * w
-
+'''
     def save_global_model(self):
         model_path = os.path.join("models", self.dataset)
         if not os.path.exists(model_path):

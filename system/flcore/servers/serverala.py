@@ -20,6 +20,9 @@ from flcore.clients.clientala import clientALA
 from flcore.servers.serverbase import Server
 from threading import Thread
 
+from utils.prunning import restore_to_original_size, prune_and_restructure
+from utils.size_mode import get_model_size
+
 
 class FedALA(Server):
     def __init__(self, args, times):
@@ -39,7 +42,9 @@ class FedALA(Server):
     def train(self):
         for i in range(self.global_rounds+1):
             s_t = time.time()
+            self.current_round = i
             self.selected_clients = self.select_clients()
+
             self.send_models()
 
             if i%self.eval_gap == 0:
@@ -50,16 +55,17 @@ class FedALA(Server):
             for client in self.selected_clients:
                 client.train()
 
-            # threads = [Thread(target=client.train)
-            #            for client in self.selected_clients]
-            # [t.start() for t in threads]
-            # [t.join() for t in threads]
+            '''threads = [Thread(target=client.train)
+                       for client in self.selected_clients]
+            [t.start() for t in threads]
+            [t.join() for t in threads]'''
 
             self.receive_models()
             if self.dlg_eval and i%self.dlg_gap == 0:
                 self.call_dlg(i)
             self.aggregate_parameters()
 
+      
             self.Budget.append(time.time() - s_t)
             print('-'*25, 'time cost', '-'*25, self.Budget[-1])
 
@@ -86,6 +92,24 @@ class FedALA(Server):
 
     def send_models(self):
         assert (len(self.clients) > 0)
-
+        
+        if self.current_round == 1 and self.apply_prune == 1:
+            
+            max_amount = self.set_amount_prune()
+            self.global_model, _ = prune_and_restructure(self.global_model, max_amount)
+        size_global_model = get_model_size(self.global_model)
+        print(f'Size Global Model: {size_global_model:.2f}MB')
         for client in self.clients:
-            client.local_initialization(self.global_model)
+            
+            start_time = time.time()
+            
+            if self.current_round == 1 and self.apply_prune == 1:
+
+                local_model, _ = prune_and_restructure(client.model, max_amount)
+                client.set_parameters(local_model)
+                client.local_initialization(self.global_model)         
+            else:
+                client.local_initialization(self.global_model) 
+
+            client.send_time_cost['num_rounds'] += 1
+            client.send_time_cost['total_cost'] += (time.time() - start_time)

@@ -495,6 +495,11 @@ if __name__ == "__main__":
     parser.add_argument('-mo', "--momentum", type=float, default=0.1)
     parser.add_argument('-klw', "--kl_weight", type=float, default=0.0)
 
+    #prune
+    parser.add_argument('-am', "--amount_prune", type=float, default=0.0)
+    parser.add_argument('-as', "--asynchronous", type=int, default=1)
+    parser.add_argument('-ap', "--apply_prune", type=int, default=1)
+
 
     args = parser.parse_args()
 
