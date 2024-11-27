@@ -20,6 +20,8 @@ from flcore.clients.clientavg import clientAVG
 from flcore.servers.serverbase import Server
 from threading import Thread
 
+from utils.prunning import restore_to_original_size, prune_and_restructure
+from utils.size_mode import get_model_size
 
 class FedAvg(Server):
     def __init__(self, args, times):
@@ -37,8 +39,12 @@ class FedAvg(Server):
 
 
     def train(self):
+        #self.global_model, _ = prune_and_restructure(self.global_model, 0.9)
+
         for i in range(self.global_rounds+1):
+            
             s_t = time.time()
+            self.current_round = i
             self.selected_clients = self.select_clients()
             self.send_models()
 
@@ -50,16 +56,11 @@ class FedAvg(Server):
             for client in self.selected_clients:
                 client.train()
 
-            # threads = [Thread(target=client.train)
-            #            for client in self.selected_clients]
-            # [t.start() for t in threads]
-            # [t.join() for t in threads]
-
             self.receive_models()
             if self.dlg_eval and i%self.dlg_gap == 0:
                 self.call_dlg(i)
             self.aggregate_parameters()
-
+            
             self.Budget.append(time.time() - s_t)
             print('-'*25, 'time cost', '-'*25, self.Budget[-1])
 

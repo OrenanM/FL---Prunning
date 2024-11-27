@@ -22,6 +22,8 @@ import copy
 import random
 from torch.utils.data import DataLoader
 from typing import List, Tuple
+from utils.prunning import prune_and_restructure
+from utils.size_mode import get_model_size
 
 class ALA:
     def __init__(self,
@@ -83,13 +85,11 @@ class ALA:
         Returns:
             None.
         """
-
         # randomly sample partial local training data
         rand_ratio = self.rand_percent / 100
         rand_num = int(rand_ratio*len(self.train_data))
         rand_idx = random.randint(0, len(self.train_data)-rand_num)
         rand_loader = DataLoader(self.train_data[rand_idx:rand_idx+rand_num], self.batch_size, drop_last=False)
-
 
         # obtain the references of the parameters
         params_g = list(global_model.parameters())

@@ -59,3 +59,4 @@ class clientAVG(Client):
 
         self.train_time_cost['num_rounds'] += 1
         self.train_time_cost['total_cost'] += time.time() - start_time
+        self.time_last_train = time.time() - start_time

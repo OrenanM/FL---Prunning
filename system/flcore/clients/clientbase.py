@@ -67,6 +67,12 @@ class Client(object):
         )
         self.learning_rate_decay = args.learning_rate_decay
 
+        self.delay = False
+        self.time_complete_training = 0 #time to complete training
+        self.mask_model = None
+        self.time_last_train = 0
+        self.prune = False
+        self.delay = False
 
     def load_train_data(self, batch_size=None):
         if batch_size == None:
