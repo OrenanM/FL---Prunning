@@ -94,9 +94,12 @@ class FedALA(Server):
         assert (len(self.clients) > 0)
         
         if self.current_round == 1 and self.apply_prune == 1:
-            
-            max_amount = self.set_amount_prune()
+            if self.amount_prune == 0:
+                max_amount = self.set_amount_prune() # calcula a porcentagem do prunning
+            else:
+                max_amount = self.amount_prune # utiliza valor pre-definido
             self.global_model, _ = prune_and_restructure(self.global_model, max_amount)
+
         size_global_model = get_model_size(self.global_model)
         print(f'Size Global Model: {size_global_model:.2f}MB')
         for client in self.clients:
