@@ -98,7 +98,7 @@ class FedALA(Server):
                 max_amount = self.set_amount_prune() # calcula a porcentagem do prunning
             else:
                 max_amount = self.amount_prune # utiliza valor pre-definido
-            self.global_model, _ = prune_and_restructure(self.global_model, max_amount)
+            self.global_model, _ = prune_and_restructure(self.global_model, max_amount, self.size_fc)
 
         size_global_model = get_model_size(self.global_model)
         print(f'Size Global Model: {size_global_model:.2f}MB')
@@ -108,7 +108,7 @@ class FedALA(Server):
             
             if self.current_round == 1 and self.apply_prune == 1:
 
-                local_model, _ = prune_and_restructure(client.model, max_amount)
+                local_model, _ = prune_and_restructure(client.model, max_amount, self.size_fc)
                 client.set_parameters(local_model)
                 client.local_initialization(self.global_model)         
             else:
