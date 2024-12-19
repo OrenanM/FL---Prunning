@@ -89,6 +89,9 @@ class Server(object):
         self.apply_prune = args.apply_prune
         self.masks = {}
 
+        if self.dataset == "MNIST":
+            self.size_fc = 16
+
     def set_clients(self, clientObj):
         for i, train_slow, send_slow in zip(range(self.num_clients), self.train_slow_clients, self.send_slow_clients):
             train_data = read_client_data(self.dataset, i, is_train=True)
@@ -118,8 +121,9 @@ class Server(object):
             self.send_slow_rate)
 
     def select_clients(self):
-        if self.current_round == 0 and self.apply_prune:
-            print('aqui')
+        if (self.current_round == 0) and self.apply_prune:
+            # round de identificação
+            print(f'select all round {self.current_round}')
             return self.clients
         if self.random_join_ratio:
             self.current_num_join_clients = np.random.choice(range(self.num_join_clients, self.num_clients+1), 1, replace=False)[0]
@@ -166,7 +170,7 @@ class Server(object):
             tot_time += client_time_cost
 
         mean_time = tot_time / len(active_clients)
-        self.time_threthold = 1.2 * mean_time
+        self.time_threthold = 1.2*mean_time
         print(f'time_threthold: {self.time_threthold}s')
 
     def receive_models(self):
@@ -183,13 +187,12 @@ class Server(object):
         mean_time = 0
         max_samples = 0
         
-        if self.asynchronous and (self.current_round == 0 or self.current_round == 2):
+        if self.asynchronous and (self.current_round == 0):
             self.set_threthold(active_clients)
 
         for client in active_clients:
             try:
-                client_time_cost = client.train_time_cost['total_cost'] / client.train_time_cost['num_rounds'] + \
-                        client.send_time_cost['total_cost'] / client.send_time_cost['num_rounds']
+                client_time_cost = client.train_time_cost['total_cost'] / client.train_time_cost['num_rounds']
             except ZeroDivisionError:
                 client_time_cost = 0
             

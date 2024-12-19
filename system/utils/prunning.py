@@ -4,7 +4,7 @@ import torch.nn.utils.prune as prune
 import copy
 import numpy as np
 
-def prune_and_restructure(model, amout = 0.5, n_in = 1):
+def prune_and_restructure(model, amout = 0.5, n_in = 1, size_fc = 25):
     model_copy = copy.deepcopy(model)
     layers = []
     indices_not_remove_weight = []
@@ -71,7 +71,7 @@ def prune_and_restructure(model, amout = 0.5, n_in = 1):
 
             # filtra os pesos da camada
             if first_linear:
-                indices_not_remove_weight = indices_not_remove_weight.repeat(16)
+                indices_not_remove_weight = indices_not_remove_weight.repeat(size_fc)
                 first_linear = False
                 
                 n_in = sum(indices_not_remove_weight)
@@ -123,7 +123,7 @@ def restore_to_original_size(model, masks):
             
             if first_linear:
                 # ajusta de acordo com as dimensões alteradas pelo flatten
-                bool_mask_weight = np.repeat(bool_mask_weight, 16)
+                bool_mask_weight = np.repeat(bool_mask_weight, size_fc)
                 bool_mask_weight = torch.tensor(bool_mask_weight).clone().detach()
                 first_linear = False
             
