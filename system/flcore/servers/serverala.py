@@ -51,22 +51,25 @@ class FedALA(Server):
                 print(f"\n-------------Round number: {i}-------------")
                 print("\nEvaluate global model")
                 self.evaluate()
+            t_send = time.time() - s_t # tempo de envio
 
-            for client in self.selected_clients:
-                client.train()
-
-            '''threads = [Thread(target=client.train)
+            s_train = time.time()
+            threads = [Thread(target=client.train)
                        for client in self.selected_clients]
             [t.start() for t in threads]
-            [t.join() for t in threads]'''
+            [t.join() for t in threads]
+            t_train = time.time() - s_train # tempo de treinamento
+            t_train = t_train if self.time_threthold > t_train else self.set_threthold
 
+            st_agr = time.time()
             self.receive_models()
             if self.dlg_eval and i%self.dlg_gap == 0:
                 self.call_dlg(i)
             self.aggregate_parameters()
-
-      
-            self.Budget.append(time.time() - s_t)
+            t_aggregate = time.time() - st_agr
+            
+            tot_time = t_aggregate + t_aggregate + t_send
+            self.Budget.append(tot_time)
             print('-'*25, 'time cost', '-'*25, self.Budget[-1])
 
             if self.auto_break and self.check_done(acc_lss=[self.rs_test_acc], top_cnt=self.top_cnt):

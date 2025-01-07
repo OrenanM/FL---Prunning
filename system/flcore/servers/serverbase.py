@@ -157,7 +157,7 @@ class Server(object):
     def apply_pruning(self, client, amount):
         """aplica o prunning"""
         global_model = copy.deepcopy(self.global_model)
-        model, mask = prune_and_restructure(global_model, amount)
+        model, mask = prune_and_restructure(global_model, amount, size_fc=self.size_fc)
         return model, mask
 
     def set_threthold(self, active_clients):
@@ -192,7 +192,7 @@ class Server(object):
 
         for client in active_clients:
             try:
-                client_time_cost = client.train_time_cost['total_cost'] / client.train_time_cost['num_rounds']
+                client_time_cost = client.time_last_train
             except ZeroDivisionError:
                 client_time_cost = 0
             
