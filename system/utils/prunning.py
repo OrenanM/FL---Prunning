@@ -4,7 +4,7 @@ import torch.nn.utils.prune as prune
 import copy
 import numpy as np
 
-def prune_and_restructure(model, amout = 0.5, n_in = 1, size_fc = 25):
+def prune_and_restructure(model, pruning_rate = 0.5, n_in = 1, size_fc = 25):
     model_copy = copy.deepcopy(model)
     layers = []
     indices_not_remove_weight = []
@@ -21,7 +21,7 @@ def prune_and_restructure(model, amout = 0.5, n_in = 1, size_fc = 25):
         if isinstance(module, nn.Conv2d):
             
             # realiza o prunning e substitui os pesos por 0
-            prune.ln_structured(module, name='weight', amount=amout, n=2, dim=0)
+            prune.ln_structured(module, name='weight', amount=pruning_rate, n=2, dim=0)
             masks.append(list(model_copy.buffers())[0])
             prune.remove(module, 'weight')
 
@@ -62,7 +62,7 @@ def prune_and_restructure(model, amout = 0.5, n_in = 1, size_fc = 25):
         if isinstance(module, nn.Linear):            
             
             # realiza o prunning e substitui os pesos por 0
-            prune.ln_structured(module, name='weight', amount=amout, n=2, dim=0)
+            prune.ln_structured(module, name='weight', amount=pruning_rate, n=2, dim=0)
             masks.append(list(model_copy.buffers())[0])
             prune.remove(module, 'weight')
 

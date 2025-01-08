@@ -86,9 +86,9 @@ class Server(object):
         self.mask_model = None
         self.asynchronous = args.asynchronous
         self.max_samples = 0
-        self.apply_prune = args.apply_prune
         self.masks = {}
 
+        self.pruning_method = args.pruning_method
         if self.dataset == "MNIST":
             self.size_fc = 16
 
@@ -121,7 +121,7 @@ class Server(object):
             self.send_slow_rate)
 
     def select_clients(self):
-        if (self.current_round == 0) and self.apply_prune:
+        if (self.current_round == 0) and self.pruning_method:
             # round de identificação
             print(f'select all round {self.current_round}')
             return self.clients
@@ -206,7 +206,7 @@ class Server(object):
                     #numero maximo de dados dentro do limiar
                     self.max_samples = client.train_samples
 
-            elif self.apply_prune == 1:
+            elif self.pruning_method == 1:
                 client.delay = True
 
             if client.train_samples > max_samples:

@@ -24,6 +24,7 @@ from torch.utils.data import DataLoader
 from typing import List, Tuple
 from utils.prunning import prune_and_restructure
 from utils.size_mode import get_model_size
+from utils.prunning_snip import apply_mask
 
 class ALA:
     def __init__(self,
@@ -73,7 +74,8 @@ class ALA:
 
     def adaptive_local_aggregation(self, 
                             global_model: nn.Module,
-                            local_model: nn.Module) -> None:
+                            local_model: nn.Module,
+                            mask = None) -> None:
         """
         Generates the Dataloader for the randomly sampled local training data and 
         preserves the lower layers of the update. 
@@ -102,7 +104,6 @@ class ALA:
         # preserve all the updates in the lower layers
         for param, param_g in zip(params[:-self.layer_idx], params_g[:-self.layer_idx]):
             param.data = param_g.data.clone()
-
 
         # temp local model only for weight learning
         model_t = copy.deepcopy(local_model)
@@ -156,6 +157,8 @@ class ALA:
                                                         params_gp, self.weights):
                     param_t.data = param + (param_g - param) * weight
 
+                if mask:
+                    model_t = apply_mask(model_t, mask)
             losses.append(loss_value.item())
             cnt += 1
 

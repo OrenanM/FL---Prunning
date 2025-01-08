@@ -22,6 +22,9 @@ from threading import Thread
 
 from utils.prunning import restore_to_original_size, prune_and_restructure
 from utils.size_mode import get_model_size
+from utils.prunning_nisp import prune_fc1
+from utils.prunning_snip import snip_pruning, apply_mask
+import copy
 
 
 class FedALA(Server):
@@ -94,28 +97,70 @@ class FedALA(Server):
 
 
     def send_models(self):
-        assert (len(self.clients) > 0)
-        
-        if self.current_round == 1 and self.apply_prune == 1:
-            if self.amount_prune == 0:
-                max_amount = self.set_amount_prune() # calcula a porcentagem do prunning
-            else:
-                max_amount = self.amount_prune # utiliza valor pre-definido
-            self.global_model, _ = prune_and_restructure(self.global_model, max_amount, self.size_fc)
+        assert len(self.clients) > 0
 
+        # Cálculo inicial do pruning apenas na primeira rodada, se aplicável
+        max_amount = None
+        if self.current_round == 1 and self.pruning_method:
+            max_amount = self.amount_prune or self.set_amount_prune()
+            
+        # Exibir tamanho do modelo global
         size_global_model = get_model_size(self.global_model)
         print(f'Size Global Model: {size_global_model:.2f}MB')
+
+        # Copia profunda do modelo global
+        global_model_copy = copy.deepcopy(self.global_model)
+
+        # Processar os clientes
         for client in self.clients:
-            
             start_time = time.time()
-            
-            if self.current_round == 1 and self.apply_prune == 1:
+            g_model_pruned = copy.deepcopy(self.global_model)
+            local_model=client.model
 
-                local_model, _ = prune_and_restructure(client.model, max_amount, self.size_fc)
+            if self.current_round == 1 and self.pruning_method:
+                
+                if self.pruning_method == 'OPALA':
+                    g_model_pruned, _ = prune_and_restructure(model=self.global_model, 
+                                                              pruning_rate=max_amount, 
+                                                              size_fc=self.size_fc)
+                    local_model, _ = prune_and_restructure(model=client.model, 
+                                                           pruning_rate=max_amount, 
+                                                           size_fc=self.size_fc)
+                elif self.pruning_method == 'NISP':
+                    trainloader = client.load_train_data()
+                    
+                    g_model_pruned, _ = prune_fc1(model=client.model, 
+                                                       dataloader=trainloader, 
+                                                       pruning_ratio=max_amount)
+                    
+                    local_model, _ = prune_fc1(model=client.model, 
+                                               dataloader=trainloader, 
+                                               pruning_ratio=max_amount)
+                
+                elif self.pruning_method == 'SNIP':
+                    trainloader = client.load_train_data()
+                    
+                    self.mask = snip_pruning(model=client.model, 
+                                                  dataloader=trainloader,
+                                                  criterion=client.loss, 
+                                                  pruning_ratio=max_amount)
+                    
+                    client.mask = snip_pruning(model=client.model, 
+                                               dataloader=trainloader,
+                                               criterion=client.loss, 
+                                               pruning_ratio=max_amount)
+                    
+                    local_model = apply_mask(client.model, client.mask)
+                    g_model_pruned = apply_mask(g_model_pruned, self.mask)
+                    
+                    print("SNIP")
+
                 client.set_parameters(local_model)
-                client.local_initialization(self.global_model)         
-            else:
-                client.local_initialization(self.global_model) 
 
+            # Inicializar localmente com o modelo global
+            g_model_pruned = copy.deepcopy(g_model_pruned)
+            client.local_initialization(g_model_pruned)
+
+            # Atualizar tempo de envio
             client.send_time_cost['num_rounds'] += 1
             client.send_time_cost['total_cost'] += (time.time() - start_time)

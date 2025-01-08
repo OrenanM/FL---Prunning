@@ -160,7 +160,7 @@ class AmazonMLP(nn.Module):
 #         x = self.fc(x)
 #         return x
 
-class FedAvgCNN(nn.Module):
+'''class FedAvgCNN(nn.Module):
     def __init__(self, in_features=1, num_classes=10, dim=1024):
         super().__init__()
         self.conv1 = nn.Sequential(
@@ -195,7 +195,64 @@ class FedAvgCNN(nn.Module):
         out = torch.flatten(out, 1)
         out = self.fc1(out)
         out = self.fc(out)
-        return out
+        return out'''
+
+class FedAvgCNN(nn.Module):
+    def __init__(self, in_features=1, num_classes=10, dim=1024):
+        super().__init__()
+        # Camada convolucional 1
+        self.conv1 = nn.Conv2d(
+            in_features,
+            32,
+            kernel_size=5,
+            padding=0,
+            stride=1,
+            bias=True
+        )
+        self.relu1 = nn.ReLU(inplace=True)
+        self.pool1 = nn.MaxPool2d(kernel_size=(2, 2))
+        
+        # Camada convolucional 2
+        self.conv2 = nn.Conv2d(
+            32,
+            64,
+            kernel_size=5,
+            padding=0,
+            stride=1,
+            bias=True
+        )
+        self.relu2 = nn.ReLU(inplace=True)
+        self.pool2 = nn.MaxPool2d(kernel_size=(2, 2))
+        
+        # Camada totalmente conectada 1
+        self.fc1 = nn.Linear(dim, 512)
+        self.relu_fc1 = nn.ReLU(inplace=True)
+        
+        # Camada de saída
+        self.fc = nn.Linear(512, num_classes)
+
+    def forward(self, x):
+        # Passagem pela primeira camada convolucional
+        x = self.conv1(x)
+        x = self.relu1(x)
+        x = self.pool1(x)
+        
+        # Passagem pela segunda camada convolucional
+        x = self.conv2(x)
+        x = self.relu2(x)
+        x = self.pool2(x)
+        
+        # Flatten
+        x = torch.flatten(x, 1)
+        
+        # Passagem pela primeira camada totalmente conectada
+        x = self.fc1(x)
+        x = self.relu_fc1(x)
+        
+        # Camada de saída
+        x = self.fc(x)
+        
+        return x
 
 # ====================================================================================================================
 

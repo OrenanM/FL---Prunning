@@ -498,7 +498,7 @@ if __name__ == "__main__":
     #prune
     parser.add_argument('-am', "--amount_prune", type=float, default=0.0) # definir valor prévio da porcentagem do pruning
     parser.add_argument('-as', "--asynchronous", type=int, default=1)
-    parser.add_argument('-ap', "--apply_prune", type=int, default=1)
+    parser.add_argument('-pm', "--pruning_method", type=str, default=None)
 
 
     args = parser.parse_args()

@@ -20,6 +20,7 @@ import time
 from flcore.clients.clientbase import Client
 from utils.data_utils import read_client_data
 from utils.ALA import ALA
+from utils.prunning_snip import apply_mask
 
 
 class clientALA(Client):
@@ -60,6 +61,9 @@ class clientALA(Client):
                 loss.backward()
                 self.optimizer.step()
 
+                if self.mask:
+                    self.model = apply_mask(self.model, self.mask)
+
         # self.model.cpu()
 
         if self.learning_rate_decay:
@@ -71,4 +75,4 @@ class clientALA(Client):
         
 
     def local_initialization(self, received_global_model):
-        self.ALA.adaptive_local_aggregation(received_global_model, self.model)
+        self.ALA.adaptive_local_aggregation(received_global_model, self.model, mask = self.mask)
