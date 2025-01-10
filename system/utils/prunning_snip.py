@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
 
-def snip_pruning(model, dataloader, criterion, pruning_ratio):
+def snip_pruning(model, dataloader, criterion, pruning_ratio, device):
     model.train()
     images, labels = next(iter(dataloader))
+    images = images.to(device)
+    labels = labels.to(device)
     
     # Calcular la pérdida y retropropagación
     outputs = model(images)

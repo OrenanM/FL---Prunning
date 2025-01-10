@@ -91,6 +91,8 @@ class Server(object):
         self.pruning_method = args.pruning_method
         if self.dataset == "MNIST":
             self.size_fc = 16
+        
+        self.time_train = []
 
     def set_clients(self, clientObj):
         for i, train_slow, send_slow in zip(range(self.num_clients), self.train_slow_clients, self.send_slow_clients):
@@ -187,7 +189,7 @@ class Server(object):
         mean_time = 0
         max_samples = 0
         
-        if self.asynchronous and (self.current_round == 0):
+        if self.asynchronous == 1 and self.current_round == 0:
             self.set_threthold(active_clients)
 
         for client in active_clients:
@@ -287,7 +289,7 @@ class Server(object):
             os.makedirs(result_path)
 
         if (len(self.rs_test_acc)):
-            algo = algo + "_" + self.goal + "_" + str(self.times)
+            algo = self.pruning_method + str(self.amount_prune) + str(self.asynchronous) + algo + "_" + self.goal + "_" + str(self.times)
             file_path = result_path + "{}.h5".format(algo)
             print("File path: " + file_path)
 
@@ -295,6 +297,9 @@ class Server(object):
                 hf.create_dataset('rs_test_acc', data=self.rs_test_acc)
                 hf.create_dataset('rs_test_auc', data=self.rs_test_auc)
                 hf.create_dataset('rs_train_loss', data=self.rs_train_loss)
+                hf.create_dataset('rs_tot_time', data=self.Budget)
+                if self.time_train:
+                    hf.create_dataset('rs_time_train', data=self.time_train)
 
     def save_item(self, item, item_name):
         if not os.path.exists(self.save_folder_name):

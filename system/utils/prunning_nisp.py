@@ -3,7 +3,7 @@ import torch.nn as nn
 from tqdm import tqdm
 
 # Función para obtener la salida de la FRL (penúltima capa)
-def get_frl_output(model, dataloader):
+def get_frl_output(model, dataloader, device):
     frl_outputs = []
 
     def hook(module, input, output):
@@ -17,7 +17,7 @@ def get_frl_output(model, dataloader):
     print("Obteniendo salida de la FRL para el dataset MNIST...")
     for images, _ in tqdm(dataloader, desc="Procesando imágenes"):
         with torch.no_grad():
-            model(images)
+            model(images.to(device))
 
     # Eliminar el hook
     hook_handle.remove()
@@ -42,9 +42,9 @@ def propagate_importance_fc(model, importance_scores):
     
     return importance_fc1
 
-def prune_fc1(model, dataloader, pruning_ratio=0.5):
+def prune_fc1(model, dataloader, device, pruning_ratio=0.5):
 
-    frl_outputs = get_frl_output(model, dataloader)
+    frl_outputs = get_frl_output(model, dataloader, device)
     importance_scores = calculate_neuron_importance(frl_outputs)
     importance_fc1 = propagate_importance_fc(model, importance_scores)
 
