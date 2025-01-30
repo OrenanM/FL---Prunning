@@ -89,8 +89,12 @@ class Server(object):
         self.masks = {}
 
         self.pruning_method = args.pruning_method
+        self.size_fc = 25
         if self.dataset == "MNIST":
             self.size_fc = 16
+            
+        self.n_aggregates = []
+        self.time_train = []
 
     def set_clients(self, clientObj):
         for i, train_slow, send_slow in zip(range(self.num_clients), self.train_slow_clients, self.send_slow_clients):
@@ -136,7 +140,7 @@ class Server(object):
     def set_amount_prune(self):
         max_amount = 0
         for client in self.clients:
-            amount = 1 - (self.max_samples / client.train_samples)
+            amount = 1 - (self.max_samples /(2*client.train_samples))
             amount = max(0, min(amount, 0.9))
 
             if amount > max_amount:
@@ -165,12 +169,11 @@ class Server(object):
         tot_time = 0
 
         for client in active_clients:
-            client_time_cost = client.train_time_cost['total_cost'] / client.train_time_cost['num_rounds'] + \
-                        client.send_time_cost['total_cost'] / client.send_time_cost['num_rounds']
+            client_time_cost = client.time_last_train
             tot_time += client_time_cost
 
         mean_time = tot_time / len(active_clients)
-        self.time_threthold = 1.2*mean_time
+        self.time_threthold = 0.9*mean_time
         print(f'time_threthold: {self.time_threthold}s')
 
     def receive_models(self):
@@ -187,12 +190,13 @@ class Server(object):
         mean_time = 0
         max_samples = 0
         
-        if self.asynchronous and (self.current_round == 0):
+        if self.asynchronous == 1 and self.current_round == 0:
             self.set_threthold(active_clients)
 
         for client in active_clients:
             try:
                 client_time_cost = client.time_last_train
+                # print(f'{client.id}({client.train_samples} samples): {client_time_cost}s')
             except ZeroDivisionError:
                 client_time_cost = 0
             
@@ -287,7 +291,7 @@ class Server(object):
             os.makedirs(result_path)
 
         if (len(self.rs_test_acc)):
-            algo = algo + "_" + self.goal + "_" + str(self.times)
+            algo = self.pruning_method + str(self.amount_prune) + str(self.asynchronous) + algo + "_" + self.goal + "_" + str(self.times)
             file_path = result_path + "{}.h5".format(algo)
             print("File path: " + file_path)
 
@@ -295,6 +299,10 @@ class Server(object):
                 hf.create_dataset('rs_test_acc', data=self.rs_test_acc)
                 hf.create_dataset('rs_test_auc', data=self.rs_test_auc)
                 hf.create_dataset('rs_train_loss', data=self.rs_train_loss)
+                hf.create_dataset('rs_tot_time', data=self.Budget)
+                hf.create_dataset('rs_n_aggregate', data=self.n_aggregates)
+                if self.time_train:
+                    hf.create_dataset('rs_time_train', data=self.time_train)
 
     def save_item(self, item, item_name):
         if not os.path.exists(self.save_folder_name):

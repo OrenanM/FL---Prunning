@@ -57,12 +57,16 @@ class FedALA(Server):
             t_send = time.time() - s_t # tempo de envio
 
             s_train = time.time()
-            threads = [Thread(target=client.train)
+            '''threads = [Thread(target=client.train)
                        for client in self.selected_clients]
             [t.start() for t in threads]
-            [t.join() for t in threads]
+            [t.join() for t in threads]'''
+
+            for client in self.selected_clients:
+                client.train()
             t_train = time.time() - s_train # tempo de treinamento
-            t_train = t_train if self.time_threthold > t_train else self.set_threthold
+            t_train = t_train if self.time_threthold > t_train else self.time_threthold
+            self.time_train.append(t_train)
 
             st_agr = time.time()
             self.receive_models()
@@ -71,8 +75,11 @@ class FedALA(Server):
             self.aggregate_parameters()
             t_aggregate = time.time() - st_agr
             
-            tot_time = t_aggregate + t_aggregate + t_send
+            tot_time = t_aggregate + t_train + t_send
             self.Budget.append(tot_time)
+            self.n_aggregates.append(len(self.uploaded_ids))
+
+            print(f'time train: {self.time_train[-1]}')
             print('-'*25, 'time cost', '-'*25, self.Budget[-1])
 
             if self.auto_break and self.check_done(acc_lss=[self.rs_test_acc], top_cnt=self.top_cnt):
@@ -102,7 +109,7 @@ class FedALA(Server):
         # Cálculo inicial do pruning apenas na primeira rodada, se aplicável
         max_amount = None
         if self.current_round == 1 and self.pruning_method:
-            max_amount = self.amount_prune or self.set_amount_prune()
+            max_amount = self.set_amount_prune()
             
         # Exibir tamanho do modelo global
         size_global_model = get_model_size(self.global_model)
@@ -131,11 +138,13 @@ class FedALA(Server):
                     
                     g_model_pruned, _ = prune_fc1(model=client.model, 
                                                        dataloader=trainloader, 
-                                                       pruning_ratio=max_amount)
+                                                       pruning_ratio=max_amount,
+                                                       device=self.device)
                     
                     local_model, _ = prune_fc1(model=client.model, 
                                                dataloader=trainloader, 
-                                               pruning_ratio=max_amount)
+                                               pruning_ratio=max_amount,
+                                               device=self.device)
                 
                 elif self.pruning_method == 'SNIP':
                     trainloader = client.load_train_data()
@@ -143,22 +152,23 @@ class FedALA(Server):
                     self.mask = snip_pruning(model=client.model, 
                                                   dataloader=trainloader,
                                                   criterion=client.loss, 
-                                                  pruning_ratio=max_amount)
+                                                  pruning_ratio=max_amount,
+                                                  device=self.device)
                     
                     client.mask = snip_pruning(model=client.model, 
                                                dataloader=trainloader,
                                                criterion=client.loss, 
-                                               pruning_ratio=max_amount)
+                                               pruning_ratio=max_amount,
+                                               device=self.device)
                     
                     local_model = apply_mask(client.model, client.mask)
                     g_model_pruned = apply_mask(g_model_pruned, self.mask)
                     
                     print("SNIP")
 
-                client.set_parameters(local_model)
+            client.set_parameters(local_model)
 
             # Inicializar localmente com o modelo global
-            g_model_pruned = copy.deepcopy(g_model_pruned)
             client.local_initialization(g_model_pruned)
 
             # Atualizar tempo de envio

@@ -71,7 +71,7 @@ def prune_and_restructure(model, pruning_rate = 0.5, n_in = 1, size_fc = 25):
 
             # filtra os pesos da camada
             if first_linear:
-                indices_not_remove_weight = indices_not_remove_weight.repeat(16)
+                indices_not_remove_weight = indices_not_remove_weight.repeat(25)
                 first_linear = False
                 
                 n_in = sum(indices_not_remove_weight)
@@ -82,7 +82,7 @@ def prune_and_restructure(model, pruning_rate = 0.5, n_in = 1, size_fc = 25):
             # aplica o filtragem nos neuronios com valores 0
 
             if n == index_last_layer: # não reestrutura a ultima camada
-                indices_not_remove_perceptron = torch.tensor([True] * 10)
+                indices_not_remove_perceptron = torch.tensor([True] * 100)
                 masks[-1] = masks[-1] + 1
             
             weight_prunned = weight_prunned[indices_not_remove_perceptron]
@@ -123,7 +123,7 @@ def restore_to_original_size(model, masks, size_fc=25):
             
             if first_linear:
                 # ajusta de acordo com as dimensões alteradas pelo flatten
-                bool_mask_weight = np.repeat(bool_mask_weight, 16)
+                bool_mask_weight = np.repeat(bool_mask_weight, 25)
                 bool_mask_weight = torch.tensor(bool_mask_weight).clone().detach()
                 first_linear = False
             
